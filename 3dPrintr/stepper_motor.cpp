@@ -7,7 +7,7 @@
 #include "stepper_motor.h"
 
 StepperMotor::StepperMotor(volatile unsigned char *port, unsigned char pos, char mask, unsigned char steps_per_rotation,
-                           char *steps, unsigned char num_steps, float pitch)
+                           char *steps, unsigned char num_steps, double pitch)
 {
 	this->port = port;
 	this->pos = pos;

@@ -6,8 +6,10 @@
 #include <util/delay.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "gcode/line.h"
 #include "debugout.h"
 #include "stepper_motor.h"
+#include "new.h"
 
 void configure_usart()
 {
@@ -36,11 +38,8 @@ int main(void)
   
   DDRA = 0b11110000;
   
-  // Clear screen (PuTTY)
-  printf("%c", 27);
-  printf("[2J"); // Clear screen
-  printf("%c", 27);
-  printf("[H"); // Home
+  printf("%c[2J", 27); // Clear screen
+  printf("%c[H", 27); // Home
   
   printf("3dprintr\r\n");
   printf("Press 's' to start and stop the spindle\r\n");
@@ -60,21 +59,27 @@ int main(void)
 }
 
 // Interrupt for USART receive (RS232)
+char buffer[256];
+unsigned char bufoff = 0;
 ISR(USART0_RX_vect) {
   char c = UDR0;
-  switch(c) {
-    case 'r':
-    cw = !cw;
-    break;
-    case 's':
-    moving = !moving;
-    break;
-    case 'i':
-    delay -= 1;
-    break;
-    case 'd':
-    delay += 1;
-    break;
+  GCode::Line *l;
+  if(c == '\n') {
+    // We have a whole line!
+    buffer[bufoff] = 0; // Finish C-string
+    l = GCode::Line::parse(&buffer[0]);
+    printf("Line: %i\r\n", l->number);
+    for(char i = 0; i < l->commands.length(); i++) {
+      GCode::Command &c = l->commands[i];
+      printf("\tCommand: %s\r\n", c.debug_name);
+      for(char j = 0; j < c.params.length(); j++) {
+        GCode::Parameter &p = c.params[j];
+        printf("\t\tParameter: %c = %06.2f\r\n", p.type, p.val);
+      }
+    }
+    bufoff = 0;
+  } else if(c != '\r') {
+    buffer[bufoff++] = c;
   }
 }
 
@@ -96,16 +101,4 @@ ISR(TIMER1_COMPA_vect) {
     _millis -= delay;
     move_motors();
   }
-}
-
-// C++ new operator
-void * operator new(size_t size)
-{
-  return malloc(size);
-}
-
-// C++ delete operator
-void operator delete(void * ptr)
-{
-  free(ptr);
 }

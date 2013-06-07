@@ -12,6 +12,9 @@ namespace GCode {
 	// default constructor
 	Program::Program()
 	{
+    this->measurement_mode = MEASUREMENT_MM;
+    this->movement_mode = MOVEMENT_ABS;
+    this->stop_mode = STOP_PAUSE;
 	} //GCodeProgram
 
 	// default destructor

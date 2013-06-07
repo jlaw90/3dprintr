@@ -15,13 +15,17 @@
 #define MOVEMENT_ABS 0
 #define MOVEMENT_REL 1
 
+#define STOP_PAUSE 0
+#define STOP_STOP 1
+
 namespace GCode {
 	class Program
 	{
 		//variables
 		public:
-		char measurement_mode = MEASUREMENT_MM;
-		char movement_mode = MOVEMENT_ABS;
+		char measurement_mode;
+		char movement_mode;
+    char stop_mode;
 		
 		
 		protected:

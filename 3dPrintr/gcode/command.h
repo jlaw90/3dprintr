@@ -9,26 +9,39 @@
 #ifndef __GCODECOMMAND_H__
 #define __GCODECOMMAND_H__
 
-#include "../Machine.h"
+#include "../machine.h"
+#include "parameter.h"
+#include "../util/list.h"
+#include "program.h"
+
 namespace GCode {
+  class Command;
+  class Line;
+  typedef void (*CommandFunction)(Machine*, Program *, Line *, Command *);
+
 	class Command
 	{
 		//variables
 		public:
+    const char *debug_name;
+    List<Parameter> params;
 		protected:
 		private:
 
 		//functions
 		public:
-		Command();
+		Command(const char *debug_name, CommandFunction func = NULL);
 		~Command();
 		
-		void (Command::*execute)(Machine* , Command*);
+		CommandFunction execute;
+
+    static Command * parse(char * idx);
 		protected:
 		private:
 		Command( const Command &c );
 		Command& operator=( const Command &c );
-
+    static Command * parse_g_code( char * idx, uint8_t num);
+    static Command * parse_m_code( char * idx, uint8_t num);
 	}; //GCodeCommand
 }
 

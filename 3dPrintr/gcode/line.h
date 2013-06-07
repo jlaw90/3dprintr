@@ -9,11 +9,18 @@
 #ifndef __GCODELINE_H__
 #define __GCODELINE_H__
 
+#include <stdint.h>
+#include "command.h"
+#include "../util/list.h"
+#include "../new.h"
+
 namespace GCode {
 	class Line
 	{
 		//variables
 		public:
+      uint16_t number;
+      List<Command> commands;
 		protected:
 		private:
 
@@ -27,8 +34,8 @@ namespace GCode {
 		private:
 		Line( const Line &c );
 		Line& operator=( const Line &c );
-		
-		char checksum(char *line);
+
+		static char checksum(char *line);
 
 	}; //GCodeLine
 }

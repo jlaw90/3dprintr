@@ -24,7 +24,7 @@ protected:
 private:
 
 public:
-	StepperMotor(volatile unsigned char *port, unsigned char pos, char mask, unsigned char steps_per_rotation, char *steps, unsigned char num_steps, float pitch);
+	StepperMotor(volatile unsigned char *port, unsigned char pos, char mask, unsigned char steps_per_rotation, char *steps, unsigned char num_steps, double pitch);
 	~StepperMotor();
 	
 	void step_forward();
