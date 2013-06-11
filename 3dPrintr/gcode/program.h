@@ -18,29 +18,39 @@
 #define STOP_PAUSE 0
 #define STOP_STOP 1
 
+#include "../machine.h"
+
 namespace GCode {
-	class Program
-	{
-		//variables
-		public:
-		char measurement_mode;
-		char movement_mode;
+  class Line;
+
+  class Program
+  {
+    //variables
+    public:
+    char measurement_mode;
+    char movement_mode;
     char stop_mode;
-		
-		
-		protected:
-		private:
+    Machine *machine;
+    Line *currentLine;
+    
+    protected:
+    private:
 
-		//functions
-		public:
-		Program();
-		~Program();
-		protected:
-		private:
-		Program( const Program &c );
-		Program& operator=( const Program &c );
+    //functions
+    public:
+    Program(Machine *machine);
+    ~Program();
 
-	}; //GCodeProgram
+    double position_to_absmm(StepperMotor *axis, double pos);
+
+    void set_position(double *x, double *y, double *z, double *e);
+
+    protected:
+    private:
+    Program( const Program &c );
+    Program& operator=( const Program &c );
+
+  }; //GCodeProgram
 }
 
 #endif //__GCODEPROGRAM_H__

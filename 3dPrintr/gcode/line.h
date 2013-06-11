@@ -10,34 +10,35 @@
 #define __GCODELINE_H__
 
 #include <stdint.h>
-#include "command.h"
 #include "../util/list.h"
 #include "../new.h"
+#include "command.h"
 
 namespace GCode {
-	class Line
-	{
-		//variables
-		public:
-      uint16_t number;
-      List<Command> commands;
-		protected:
-		private:
+  class Line
+  {
+    //variables
+    public:
+    uint16_t number;
+    List<Command> commands;
+    uint16_t command;
+    protected:
+    private:
 
-		//functions
-		public:
-		Line();
-		~Line();
-		
-		static Line * parse(char *line);
-		protected:
-		private:
-		Line( const Line &c );
-		Line& operator=( const Line &c );
+    //functions
+    public:
+    Line();
+    ~Line();
+    
+    static Line * parse(char *line);
 
-		static char checksum(char *line);
+    static char checksum(char *line);
+    protected:
+    private:
+    Line( const Line &c );
+    Line& operator=( const Line &c );
 
-	}; //GCodeLine
+  }; //GCodeLine
 }
 
 #endif //__GCODELINE_H__

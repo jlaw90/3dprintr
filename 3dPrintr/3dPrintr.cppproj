@@ -18,8 +18,7 @@
     <ToolchainFlavour>Native</ToolchainFlavour>
     <KeepTimersRunning>true</KeepTimersRunning>
     <OverrideVtor>false</OverrideVtor>
-    <OverrideVtorValue>
-    </OverrideVtorValue>
+    <OverrideVtorValue>exception_table</OverrideVtorValue>
     <eraseonlaunchrule>0</eraseonlaunchrule>
     <ProgFlashFromRam>true</ProgFlashFromRam>
     <RamSnippetAddress>0x20000000</RamSnippetAddress>
@@ -54,7 +53,7 @@
       <ToolOptions>
         <InterfaceName>JTAG</InterfaceName>
         <InterfaceProperties>
-          <JtagDbgClock>5000000</JtagDbgClock>
+          <JtagDbgClock>2000000</JtagDbgClock>
           <SwdClock>249000</SwdClock>
           <JtagProgClock>7500000</JtagProgClock>
           <IspClock>125000</IspClock>
@@ -155,6 +154,12 @@
     </ToolchainSettings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="gcode\command_context.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="gcode\commands.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="gcode\parameter.cpp">
       <SubType>compile</SubType>
     </Compile>

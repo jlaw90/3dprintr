@@ -7,6 +7,7 @@
 
 
 #include "command.h"
+#include "commands.h"
 #include "../util/list.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,29 +19,43 @@ namespace GCode {
     this->execute = func;
   }
 
+  double *Command::get_parameter(char type) {
+    for(uint16_t i = 0; i < params.length(); i++)
+      if(params[i]->type == type)
+        return &(params[i]->val);
+    return NULL;
+  }
+
   // default destructor
   Command::~Command()
   {
+    for(uint16_t i = 0; i < params.length(); i++)
+      free(params[i]);
   } //~GCodeCommand
 
-  Command * Command::parse( char * idx )
+  Command * Command::parse( char ** idx )
   {
     Command *c = NULL;
-    switch(*idx) {
+    char type = *((*idx)++);
+    switch(type) {
       case 'G': // G code
-      c = parse_g_code(idx, (uint8_t) strtod(idx, &idx));
+      c = parse_g_code((uint8_t) strtod(*idx, idx));
       break;
       case 'M': // M code
-      c = parse_m_code(idx, (uint8_t) strtod(idx, &idx));
+      c = parse_m_code((uint8_t) strtod(*idx, idx));
+      break;
+      case 'T': // T code
+      c = new Command("Change tool", &change_tool);
+      c->params.add(new Parameter('T', strtod(*idx, idx)));
       break;
       default:
-      printf("Unknown code type: %c\r\n", *idx);
+      printf("Unknown code type: %c\r\n", type);
     }
 
     return c;
   }
 
-  Command * Command::parse_g_code(char *idx, uint8_t num) {
+  Command * Command::parse_g_code(uint8_t num) {
     switch(num) {
       case 0:
       return new Command("Rapid move");
@@ -51,24 +66,24 @@ namespace GCode {
       case 10:
       return new Command("Head Offset");
       case 20:
-      return new Command("Inches mode");
+      return new Command("Inches mode", &inches_mode);
       case 21:
-      return new Command("millimetres mode");
+      return new Command("millimetres mode", &mm_mode);
       case 28:
       return new Command("Home");
       case 90:
-      return new Command("Absolute positioning");
+      return new Command("Absolute positioning", &abs_mode);
       case 91:
-      return new Command("Relative positioning");
+      return new Command("Relative positioning", &rel_mode);
       case 92:
-      return new Command("Set position (zero-point)");
+      return new Command("Set position (zero-point)", &set_position);
       default:
       printf("Unknown/Unhandled G-code: %u\r\n", num);
     }
     return NULL;
   }
 
-  Command * Command::parse_m_code(char *idx, uint8_t num) {
+  Command * Command::parse_m_code(uint8_t num) {
     switch(num) {
       case 0:
       return new Command("Stop");

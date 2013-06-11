@@ -1,9 +1,9 @@
 /*
- * new.h
- *
- * Created: 07/06/2013 16:48:57
- *  Author: James
- */ 
+* new.h
+*
+* Created: 07/06/2013 16:48:57
+*  Author: James
+*/
 
 
 #ifndef NEW_H_

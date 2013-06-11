@@ -44,14 +44,14 @@ template <class T> class List{
     list[size] = NULL;
   }
 
-  T & operator[](const uint16_t index) {
+  T * operator[](const uint16_t index) {
     ensure_capacity(index+1);
-    return *list[index];
+    return list[index];
   }
 
   void empty() {
     for(uint16_t i = 0; i < capacity; i++)
-      list[i] = NULL;
+    list[i] = NULL;
   }
 
   ~List() {
@@ -68,7 +68,7 @@ template <class T> class List{
     list = (T**) realloc(list, ca * sizeof(T*));
     assert(list != NULL);
     for(uint16_t i = size; i < ca; i++)
-      list[i] = NULL;
+    list[i] = NULL;
   }
 
   void ensure_capacity(uint16_t idx) {

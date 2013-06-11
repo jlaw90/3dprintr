@@ -1,15 +1,26 @@
 #define F_CPU 20000000UL
 #define BAUD_RATE 28800UL
+// How often we move the motors, adjust variables, etc.
+#define PROCESS_INTERVAL 10
+
+#define MODE_NORMAL 1
+#define MODE_DEBUG_X 2
+
+#define MODE MODE_NORMAL
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "gcode/line.h"
-#include "debugout.h"
-#include "stepper_motor.h"
 #include "new.h"
+#include "machine.h"
+#include "stepper_motor.h"
+#include "debugout.h"
+#include "gcode/program.h"
+#include "gcode/line.h"
+
+using namespace GCode;
 
 void configure_usart()
 {
@@ -25,37 +36,48 @@ void configure_timer() {
   TIMSK1 = _BV(OCIE1A);
 }
 
-StepperMotor *x;
-char moving = 0;
-char cw = 1;
-char delay = 20;
+void configure_ports() {
+  DDRA = 0b11110000;
+}
+
+Machine *machine;
+Program *program;
+
+uint16_t process_interval = PROCESS_INTERVAL;
 
 int main(void)
 {
   configure_timer();
   configure_usart();
+  configure_ports();
   sei();
-  
-  DDRA = 0b11110000;
-  
-  printf("%c[2J", 27); // Clear screen
-  printf("%c[H", 27); // Home
-  
-  printf("3dprintr\r\n");
+
+  printf("3dprintr - dev version\r\n");
+
+  #ifdef MODE == MODE_DEBUG_X
   printf("Press 's' to start and stop the spindle\r\n");
-  printf("      'r' to reverse the rotation direction\r\n");
-  printf("      'i' to increase rotation speed\r\n");
-  printf("      'd' to decrease rotation speed\r\n");
+  printf("      'r' to reverse spindle direction\r\n");
+  printf("      'i' to increase the spindle speed\r\n");
+  printf("      'd' to decrease the spindle speed\r\n");
+  #elif MODE == MODE_NORMAL
+  printf("start\r\n");
+  #endif
+
+  program = NULL;
   
   char steps[4] = {0b1001, 0b1100, 0b0110, 0b0011};
-  
-  x = new StepperMotor(&PORTA, 0, 0b1111, 48, &steps[0], 4, 1.25d);
+  machine = new Machine(
+  new StepperMotor(&PORTA, 0, 0b1111, 48, &steps[0], 4, 1.25d)
+  );
   while(1) {
-    double time_per_rotation = ((double) (delay * x->steps_per_rotation));
-    double mmps = (1000.0d * x->pitch) / time_per_rotation;
-    double rpm = 60000.0d / time_per_rotation;
-    printf("DEBUG: Delay: %04d, RPM: %06.2f (%06.2f mm/s), Step: %04d, Rotations: %04d\r", delay, rpm, mmps,  x->step, x->step/x->steps_per_rotation);
   }
+}
+
+void process() {
+  if(program == NULL || program->currentLine == NULL)
+  return;
+  Line *l = program->currentLine;
+  // Todo: Majority of the program goes here...
 }
 
 // Interrupt for USART receive (RS232)
@@ -63,42 +85,41 @@ char buffer[256];
 unsigned char bufoff = 0;
 ISR(USART0_RX_vect) {
   char c = UDR0;
-  GCode::Line *l;
+  #if MODE == MODE_NORMAL
   if(c == '\n') {
     // We have a whole line!
     buffer[bufoff] = 0; // Finish C-string
-    l = GCode::Line::parse(&buffer[0]);
-    printf("Line: %i\r\n", l->number);
-    for(char i = 0; i < l->commands.length(); i++) {
-      GCode::Command &c = l->commands[i];
-      printf("\tCommand: %s\r\n", c.debug_name);
-      for(char j = 0; j < c.params.length(); j++) {
-        GCode::Parameter &p = c.params[j];
-        printf("\t\tParameter: %c = %06.2f\r\n", p.type, p.val);
+    Line *l = GCode::Line::parse(&buffer[0]);
+    if(l != NULL) {
+      #ifdef DEBUG
+      printf("Parsed line: %s\r\n", &buffer[0]);
+      printf("Line no: %u, checksum: %u\r\n", l->number, l->checksum(&buffer[0]));
+      for(uint16_t i = 0; i < l->commands.length(); i++) {
+        Command *c = l->commands[i];
+        printf("  Command: %s (implemented=%i)\r\n", c->debug_name, c->execute != NULL);
+        for(uint16_t j = 0; j < c->params.length(); j++) {
+          Parameter *p = c->params[j];
+          printf("    Parameter: %c = %f\r\n", p->type, p->val);
+        }
       }
+      #endif
+      if(program == NULL)
+      program = new Program(machine);
+      program->currentLine = l;
     }
     bufoff = 0;
-  } else if(c != '\r') {
+    } else if(c != '\r') {
     buffer[bufoff++] = c;
   }
-}
-
-void move_motors() {
-  if(moving) {
-    if(cw) {
-      x->step_forward();
-      } else {
-      x->step_backward();
-    }
-  }
+  #endif
 }
 
 // Interrupt handler for timer output compare a
-unsigned long _millis = 0;
+uint16_t _millis = 0;
 ISR(TIMER1_COMPA_vect) {
   _millis++;
-  if(_millis >= delay) {
-    _millis -= delay;
-    move_motors();
+  if(_millis >= process_interval) {
+    _millis = 0;
+    process();
   }
 }

@@ -14,8 +14,8 @@ namespace GCode {
   {
     //variables
     public:
-      char type;
-      double val;
+    char type;
+    double val;
     protected:
     private:
 
@@ -24,6 +24,8 @@ namespace GCode {
     Parameter();
     Parameter(char type, double val);
     ~Parameter();
+
+    static Parameter * parse(char ** idx);
     protected:
     private:
     Parameter( const Parameter &c );
