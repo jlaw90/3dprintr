@@ -53,7 +53,7 @@
       <ToolOptions>
         <InterfaceName>JTAG</InterfaceName>
         <InterfaceProperties>
-          <JtagDbgClock>2000000</JtagDbgClock>
+          <JtagDbgClock>2500000</JtagDbgClock>
           <SwdClock>249000</SwdClock>
           <JtagProgClock>7500000</JtagProgClock>
           <IspClock>125000</IspClock>
