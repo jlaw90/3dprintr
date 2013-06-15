@@ -10,6 +10,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/wdt.h>
 #include <util/delay.h>
 #include <stdio.h>
 #include <stdlib.h>

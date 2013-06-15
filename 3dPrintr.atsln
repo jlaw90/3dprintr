@@ -2,6 +2,9 @@
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Atmel Studio Solution File, Format Version 11.00
 Project("{E66E83B9-2572-4076-B26E-6BE79FF3018A}") = "3dPrintr", "3dPrintr\3dPrintr.cppproj", "{358CE833-ECD4-46DA-8F6A-C532A5BEB056}"
+	ProjectSection(ProjectDependencies) = postProject
+		{2E4E5247-5B26-4BBA-99D0-83F7E8C638D8} = {2E4E5247-5B26-4BBA-99D0-83F7E8C638D8}
+	EndProjectSection
 EndProject
 Project("{E66E83B9-2572-4076-B26E-6BE79FF3018A}") = "Bootloader", "Bootloader\Bootloader.cppproj", "{2E4E5247-5B26-4BBA-99D0-83F7E8C638D8}"
 EndProject

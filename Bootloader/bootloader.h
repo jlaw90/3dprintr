@@ -13,6 +13,5 @@
 #define ADDR_APP_RUN (uint8_t*) E2END
 #define ADDR_FW_MAJOR ADDR_APP_RUN-1
 #define ADDR_FW_MINOR ADDR_FW_MAJOR-1
-#define ADDR_FW_CHECKSUM (uint32_t*) (ADDR_FW_MINOR-4)
 
 #endif /* BOOTLOADER_H_ */
