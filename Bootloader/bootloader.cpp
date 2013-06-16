@@ -16,44 +16,35 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "serial.h"
 #include "bootloader.h"
 
-// Write for printf (send via serial)
-static int uart_putchar(char c, FILE *stream) {
-  loop_until_bit_is_set(UCSR0A, UDRE0);
-  UDR0 = c;
-  return 0;
-}
-
-// Configure serial
-void configure_usart() {
-  UBRR0 = (F_CPU / (8UL * BAUD_RATE)) - 1UL; // baud rate
-  UCSR0A |= _BV(U2X0);
-  UCSR0B = _BV(RXEN0) | _BV(TXEN0) | _BV(RXCIE0); // Enable tx, rx, rx interrupts
-  UCSR0C = _BV(UCSZ01) | _BV(UCSZ00); // 8-bit data
-}
-
-// Send a packet
-static void send(const char *c) {
-  printf("%s\r\n", c);
-}
-
+// Send firmware version
 void announce_fw() {
   eeprom_busy_wait();
   volatile uint8_t fw_major = eeprom_read_byte(ADDR_FW_MAJOR);
   volatile uint8_t fw_minor = eeprom_read_byte(ADDR_FW_MINOR);
-  printf("FW:");
+  uart_write("FW:");
   if(fw_major == 0xff && fw_minor == 0xff)
-    printf("blank");
-  else
-    printf("%d.%03d", fw_major, fw_minor);
-  printf("\r\n");
+    uart_write("blank");
+  else {
+    char data[4];
+    itoa(fw_major, data, 10);
+    uart_write(data);
+    uart_write(".");
+    itoa(fw_minor, data, 10);
+    size_t len = strlen(data);
+    for(char i = 0; i < 3 - len; i++)
+      uart_write("0");
+    uart_write(data);
+  }
+  uart_write("\r\n");
 }
 
-// Announce bootloader and fw version
+// Announce bootloader version, signal ready to receive commands
 void announce() {
-  send("Bootr v1.000");
-  send("READY");
+  uart_writeline("Bootr v1.000");
+  uart_writeline("READY");
 }
 
 // Jump to program
@@ -63,7 +54,7 @@ void run_application() {
   // Put interrupts back in app land
   MCUCR = (1 << IVCE);
   MCUCR = 0;
-  asm("jmp 0000");
+  asm("jmp 0000"); // EZmode
 }
 
 // Entry point
@@ -84,14 +75,14 @@ int main(void) {
   MCUCR = (1 << IVCE);
   MCUCR = (1 << IVSEL);
 
-  configure_usart(); // Set up USART
-  stdout = fdevopen(uart_putchar, NULL);
+  configure_usart(); // Set up serial communications
 
   sei(); // Enable interrupts...
   announce();
   while(1);
 }
 
+// Sets the firmware version numbers in EEPROM
 void set_ver(char major, char minor) {
   eeprom_busy_wait();
   eeprom_write_byte(ADDR_FW_MAJOR, major);
@@ -99,84 +90,116 @@ void set_ver(char major, char minor) {
   eeprom_write_byte(ADDR_FW_MINOR, minor);
 }
 
-// Handle packets
+// Packet stuff below
 #define PKT_CMDS 0
 #define PKT_WRITE 1
+#define PKT_READ 2
 
 char new_maj;
 char new_min;
 char pkt_mode = PKT_CMDS;
 uint32_t last_page;
-void ParsePacket(char *idx, unsigned char len) {
-  if(pkt_mode == PKT_CMDS) {
-    if(strcmp(idx, "HELLO") == 0 && len == 5) {// announce
-      announce();
-      return;
-    }
 
-    if(*idx == 1 && len == 1) { // To command mode, ignore...
-      send("OK");
-    } else if(strcmp(idx, "BOOT") == 0 && len == 4) { // BOOT
-      send("OK");
-      run_application();
-    } else if(strcmp(idx, "FWVER") == 0 && len == 5) {
-      announce_fw();
-      send("OK");
-    } else if(strcmp(idx, "WRITE") == 0 && len == 5) {
-      pkt_mode = PKT_WRITE;
-      last_page = 0xffffffff;
-      new_maj = 0xff;
-      new_min = 0xfe;
-      set_ver(0xff, 0xfe); // Mark as unknown/corrupted
+// Called by ParsePacket, handles basic commands e.g. BOOT, FWVER, SIZE, WRITE
+void ParseCmdPacket(char *idx, unsigned char len) {
+  if(strcmp(idx, "HELLO") == 0 && len == 5) {// announce
+    announce();
+    return;
+  }
 
-      send("OK");
-    } else
-      printf("E:Unknown '%s', len: %u\r\n", idx, len);
-  } else if(pkt_mode == PKT_WRITE && len >= 1) {
-    len--;
-    char flag = *idx++;
-    if(flag == 0 && len > 4) { // Data following...
-      uint32_t addr = *((uint32_t *) idx);
-      idx += 4;
-      uint32_t page = addr / SPM_PAGESIZE;
-      if(page != last_page) {
-        if(last_page != 0xffffffff) {
-          boot_page_write_safe(last_page * (uint32_t) SPM_PAGESIZE);
-        }
-        boot_page_erase_safe(addr);
-      }
-      last_page = page;
-      len -= 4;
-      for(char i = 0; i < len; i += 2) {
-        uint16_t w = *idx++;
-        w += (*idx++) << 8;
-        boot_page_fill_safe(addr + i, w);
-      }
-      send("OK");
-    } else if(flag == 1 && len == 0) { // Discard, to command mode
-      pkt_mode = PKT_CMDS;
-      send("OK");
-    } else if(flag == 2 && len == 2) { // Set version for new fw
-      new_maj = *idx++;
-      new_min = *idx++;
-      send("OK");
-    } else if(flag == 3 && len == 0) { // All sent, flush and back to cmd mode
+  if(*idx == 1 && len == 1) { // PC app sends this on connect to exit program mode, ignore when in cmd mode
+    uart_writeline("OK");
+  } else if(strcmp(idx, "BOOT") == 0 && len == 4) { // BOOT the program
+    uart_writeline("OK");
+    run_application();
+  } else if(strcmp(idx, "FWVER") == 0 && len == 5) { // Send firmware version
+    announce_fw();
+    uart_writeline("OK");
+  } else if(strcmp(idx, "SIZE") == 0 && len == 4) { // Send flash size
+    uint32_t size = FLASHEND + 1;
+    char *size_cp = (char *) &size;
+    uart_putchar(size_cp[0], NULL);
+    uart_putchar(size_cp[1], NULL);
+    uart_putchar(size_cp[2], NULL);
+    uart_putchar(size_cp[3], NULL);
+    uart_writeline("OK");
+  } else if(strcmp(idx, "WRITE") == 0 && len == 5) { // To program mode...
+    pkt_mode = PKT_WRITE;
+    last_page = 0xffffffff;
+    new_maj = 0xff;
+    new_min = 0xfe;
+    set_ver(0xff, 0xfe); // Mark as unknown/corrupted
+
+    uart_writeline("OK");
+  } else {
+    uart_write("Unknown cmd: ");
+    uart_writeline(idx);
+  }
+}
+
+// Called by ParsePacket, handles firmware updating packets
+void ParseWritePacket(char *idx, unsigned char len) {
+  len--;
+  char flag = *idx++;
+  if(flag == 0 && len > 4) { // Data following...
+    uint32_t addr = *((uint32_t *) idx);
+    idx += 4;
+    uint32_t page = addr / SPM_PAGESIZE;
+    if(page != last_page) {
       if(last_page != 0xffffffff) {
         boot_page_write_safe(last_page * (uint32_t) SPM_PAGESIZE);
       }
-      boot_spm_busy_wait();
-      set_ver(new_maj, new_min);
-      boot_rww_enable_safe();
-      pkt_mode = PKT_CMDS;
-      send("OK");
-    } else {
-      printf("E:Invalid flag '%c', data: ", flag);
-      for(unsigned char i = 0; i < len; i++)
-        printf("%02X", idx[i]);
-      printf("\r\n");
+      boot_page_erase_safe(addr);
     }
+    last_page = page;
+    len -= 4;
+    for(char i = 0; i < len; i += 2) {
+      uint16_t w = *idx++;
+      w += (*idx++) << 8;
+      boot_page_fill_safe(addr + i, w);
+    }
+    uart_writeline("OK");
+  } else if(flag == 1 && len == 0) { // Discard, to command mode
+    pkt_mode = PKT_CMDS;
+    uart_writeline("OK");
+  } else if(flag == 2 && len == 2) { // Set version for new fw
+    new_maj = *idx++;
+    new_min = *idx++;
+    uart_writeline("OK");
+  } else if(flag == 3 && len == 0) { // All sent, flush and back to cmd mode
+    if(last_page != 0xffffffff) {
+      boot_page_write_safe(last_page * (uint32_t) SPM_PAGESIZE);
+    }
+    boot_spm_busy_wait();
+    set_ver(new_maj, new_min);
+    boot_rww_enable_safe();
+    pkt_mode = PKT_CMDS;
+    uart_writeline("OK");
   } else {
-    send("E:Invalid packet");
+    uart_write("E:Invalid flag: '");
+    uart_putchar(flag, NULL);
+    uart_write("', data: ");
+    for(unsigned char i = 0; i < len; i++) {
+      char str[3];
+      itoa(idx[i], str, 16);
+      size_t len = strlen(str);
+      for(char j = 0; j < 2 - len; j++)
+        uart_write("0");
+      uart_write(str);
+    }
+    uart_write("\r\n");
+  }
+}
+
+// Called by our ISR (below) when we have received a verified packet
+// The custom protocol implements checksumming so we know it's valid :D
+void ParsePacket(char *idx, unsigned char len) {
+  if(pkt_mode == PKT_CMDS) { // Basic commands
+    ParseCmdPacket(idx, len);
+  } else if(pkt_mode == PKT_WRITE && len >= 1) { // Receiving firmware
+    ParseWritePacket(idx, len);
+  } else {
+    uart_writeline("E:Invalid packet");
   }
 }
 
@@ -198,7 +221,7 @@ ISR(USART0_RX_vect) {
   switch(read_state) {
     case READ_STATE_P:
       if(c != 'P')
-        send("E:Invalid packet start");
+        uart_writeline("E:Invalid packet start");
       else {
         bufoff = 0;
         read_state = READ_STATE_LEN;
@@ -220,12 +243,12 @@ ISR(USART0_RX_vect) {
       checksum ^= 0xff;
       checksum_match = c == checksum;
       if(!checksum_match)
-        send("E:Checksum mismatch");
+        uart_writeline("E:Checksum mismatch");
       read_state = READ_STATE_ENDA;
       break;
     case READ_STATE_ENDA:
       if(c != 0) {
-        send("E:0 1");
+        uart_writeline("E:0 1");
         checksum_match = 0;
       }
       buf[bufoff++] = 0;
@@ -233,7 +256,7 @@ ISR(USART0_RX_vect) {
       break;
     case READ_STATE_ENDB:
       if(c != 0) {
-        send("E:0 2");
+        uart_writeline("E:0 2");
         checksum_match = 0;
       }
       if(checksum_match)
